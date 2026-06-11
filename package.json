@@ -1,0 +1,22 @@
+{
+  "name": "tabstack-cli",
+  "version": "0.1.0",
+  "description": "Gold-standard Bun CLI for the Tabstack AI web extraction, generation, research, and automation API",
+  "type": "module",
+  "bin": {
+    "tabstack": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --compile --outfile tabstack",
+    "test": "bun test"
+  },
+  "engines": {
+    "bun": ">=1.1"
+  },
+  "keywords": ["tabstack", "cli", "scraping", "extraction", "ai", "bun"],
+  "license": "MIT",
+  "devDependencies": {
+    "bun-types": "^1.3.14"
+  }
+}
