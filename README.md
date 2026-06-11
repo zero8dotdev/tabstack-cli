@@ -42,6 +42,10 @@ Fun fact: the Product Hunt example above is how this repo checked Tabstack's
 launch stats during the stream. The snake ate its own tail and returned
 valid JSON matching the schema.
 
+Want more? **[RECIPES.md](./RECIPES.md)** has ten of these, light to hard —
+from a typed Hacker News feed to CI that fails when your landing page lies,
+to a blog post that fact-checks itself.
+
 ## Install
 
 ```bash
