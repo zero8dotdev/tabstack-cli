@@ -5,9 +5,42 @@ turn any URL into clean markdown or structured JSON, transform pages with AI,
 run autonomous multi-source research, and drive natural-language browser
 automation. One binary, no SDK required.
 
-Built to the same CLI conventions as `smriti`: a subcommand router, `--json`
-on every data command, data to stdout / progress to stderr, honest exit codes,
-and `--help` / `--version` that never touch the network.
+> **Built live, on the call.** This CLI was written with
+> [Claude Code](https://claude.com/claude-code) during Tessa's Tabstack
+> livestream — start to published repo while the stream was still going.
+> It came together fast for one reason: it follows a gold-standard CLI
+> pattern I'd already honed on previous tools — data to **stdout**, progress
+> to **stderr**, `--json` on every command, honest exit codes, `--help` that
+> never touches the network. A CLI built that way works for humans *and*
+> agents — which is exactly why an agent could build, test, and dogfood it
+> in one sitting. Good conventions compound.
+
+## What can it do?
+
+```bash
+# Turn any page into clean markdown — yes, even Product Hunt
+tabstack extract markdown https://www.producthunt.com/products/tabstack
+
+# Check how Tabstack's own launch is doing... using Tabstack
+tabstack extract json https://www.producthunt.com/products/tabstack/launches \
+  --schema '{"type":"object","properties":{"launches":{"type":"array","items":{
+    "type":"object","properties":{"name":{"type":"string"},
+    "upvotes":{"type":"number"},"comments":{"type":"number"}}}}}}'
+
+# Settle the eternal argument, with citations
+tabstack research "tabs vs spaces: what do the major style guides actually recommend?"
+
+# Outsource your browsing to a browser that browses for you
+tabstack automate "find the top 3 trending repos and their star counts" \
+  --url https://github.com/trending
+
+# Pipe it like any good Unix citizen
+tabstack extract markdown https://example.com | wc -w
+```
+
+Fun fact: the Product Hunt example above is how this repo checked Tabstack's
+launch stats during the stream. The snake ate its own tail and returned
+valid JSON matching the schema.
 
 ## Install
 
@@ -124,8 +157,8 @@ tabstack automate "fill the contact form and submit" \
 ## Develop
 
 ```bash
-bun test            # mock-server end-to-end tests
-bun x tsc --noEmit  # typecheck
+bun test                          # mock-server end-to-end tests (20 tests)
+bun x -p typescript tsc --noEmit  # typecheck
 bun run start --help
 ```
 
