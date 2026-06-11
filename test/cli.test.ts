@@ -33,7 +33,12 @@ beforeAll(() => {
       }
 
       if (url.pathname === "/v1/extract/markdown") {
-        return Response.json({ url: (body as any).url, content: "# Hello\n\nworld" });
+        if ((body as any).url?.includes("slow")) await new Promise((r) => setTimeout(r, 500));
+        return Response.json({
+          url: (body as any).url,
+          content: "# Hello\n\nworld",
+          ...((body as any).metadata ? { metadata: { title: "Hello Page" } } : {}),
+        });
       }
       if (url.pathname === "/v1/extract/json") {
         return Response.json({ title: "Example" });
@@ -49,11 +54,21 @@ beforeAll(() => {
         return new Response(sse, { headers: { "Content-Type": "text/event-stream" } });
       }
       if (url.pathname === "/v1/automate") {
+        // A task containing "fail" ends with success:false to exercise exit code 3.
+        const failed = (body as any).task?.includes("fail");
         // Wrapped shape: { event, data } inside the SSE data payload.
         const sse =
           `data: ${JSON.stringify({ event: "agent:status", data: { message: "working" } })}\n\n` +
-          `data: ${JSON.stringify({ event: "task:completed", data: { finalAnswer: "done", success: true } })}\n\n`;
+          `data: ${JSON.stringify({ event: "task:completed", data: { finalAnswer: failed ? "could not" : "done", success: !failed } })}\n\n`;
         return new Response(sse, { headers: { "Content-Type": "text/event-stream" } });
+      }
+      const inputMatch = url.pathname.match(/^\/v1\/automate\/([^/]+)\/input$/);
+      if (inputMatch) {
+        const b = body as any;
+        if (!Array.isArray(b.fields) && b.cancelled !== true) {
+          return Response.json({ error: "fields or cancelled required" }, { status: 400 });
+        }
+        return Response.json({ requestId: inputMatch[1], status: "accepted" });
       }
       return Response.json({ error: "not found" }, { status: 404 });
     },
@@ -87,10 +102,24 @@ async function run(args: string[], opts: { env?: Record<string, string>; stdin?:
   return { stdout, stderr, code };
 }
 
-test("extract markdown prints content", async () => {
+test("extract markdown piped (no flags) emits the JSON envelope", async () => {
+  // Tests run with stdout piped, so the default output mode is json.
   const { stdout, code } = await run(["extract", "markdown", "https://example.com"]);
   expect(code).toBe(0);
+  expect(JSON.parse(stdout).content).toContain("# Hello");
+});
+
+test("extract markdown -o pretty prints raw markdown", async () => {
+  const { stdout, code } = await run(["extract", "markdown", "https://example.com", "-o", "pretty"]);
+  expect(code).toBe(0);
   expect(stdout).toContain("# Hello");
+  expect(stdout.trim().startsWith("{")).toBe(false);
+});
+
+test("extract markdown --metadata requests and returns page metadata", async () => {
+  const { stdout, code } = await run(["extract", "markdown", "https://example.com", "--metadata"]);
+  expect(code).toBe(0);
+  expect(JSON.parse(stdout).metadata).toEqual({ title: "Hello Page" });
 });
 
 test("extract json prints structured JSON", async () => {
@@ -109,22 +138,36 @@ test("generate json sends instructions and prints result", async () => {
   expect(JSON.parse(stdout).summary).toBe("A short summary.");
 });
 
-test("research streams and prints the report to stdout", async () => {
-  const { stdout, stderr, code } = await run(["research", "anything"]);
+test("research -o pretty streams and prints the report to stdout", async () => {
+  const { stdout, stderr, code } = await run(["research", "anything", "-o", "pretty"]);
   expect(code).toBe(0);
   expect(stdout).toContain("# Report");
   expect(stderr).toContain("Cited 1 source"); // citations go to stderr
 });
 
-test("automate handles wrapped SSE events and prints finalAnswer", async () => {
-  const { stdout, code } = await run(["automate", "do a thing", "--url", "https://example.com"]);
+test("research piped emits NDJSON, one event per line", async () => {
+  const { stdout, code } = await run(["research", "anything"]);
+  expect(code).toBe(0);
+  const lines = stdout.trim().split("\n").map((l) => JSON.parse(l));
+  expect(lines.map((l) => l.event)).toEqual(["start", "complete"]);
+  expect(lines[1].data.report).toContain("# Report");
+});
+
+test("automate -o pretty handles wrapped SSE events and prints finalAnswer", async () => {
+  const { stdout, code } = await run(["automate", "do a thing", "--url", "https://example.com", "-o", "pretty"]);
   expect(code).toBe(0);
   expect(stdout.trim()).toBe("done");
 });
 
-test("missing --schema prints Usage, not an auth error", async () => {
+test("automate that reports failure exits 3", async () => {
+  const { stderr, code } = await run(["automate", "fail at a thing", "-o", "pretty"]);
+  expect(code).toBe(3);
+  expect(stderr).toContain("automation reported failure");
+});
+
+test("missing --schema prints Usage and exits 2, not an auth error", async () => {
   const { stderr, code } = await run(["extract", "json", "https://example.com"], { env: { TABSTACK_API_KEY: "" } });
-  expect(code).toBe(1);
+  expect(code).toBe(2);
   expect(stderr).toContain("Usage:");
   expect(stderr).not.toContain("Not authenticated");
 });
@@ -289,4 +332,73 @@ test("logout when not logged in is a no-op with exit 0", async () => {
   });
   expect(code).toBe(0);
   expect(stderr).toContain("nothing to remove");
+});
+
+// --- input (human-in-the-loop) --------------------------------------------------
+
+test("input submits field values to /v1/automate/{id}/input", async () => {
+  const { stdout, code } = await run([
+    "input", "req-123",
+    "--data", '{"fields":[{"ref":"field1","value":"yes"}]}',
+  ]);
+  expect(code).toBe(0);
+  expect(JSON.parse(stdout)).toEqual({ submitted: true });
+});
+
+test("input can decline with cancelled:true", async () => {
+  const { code } = await run(["input", "req-123", "--data", '{"cancelled":true}']);
+  expect(code).toBe(0);
+});
+
+test("input without --data is a usage error (exit 2)", async () => {
+  const { stderr, code } = await run(["input", "req-123"]);
+  expect(code).toBe(2);
+  expect(stderr).toContain("Usage:");
+});
+
+test("input with neither fields nor cancelled is a usage error (exit 2)", async () => {
+  const { stderr, code } = await run(["input", "req-123", "--data", '{"bogus":1}']);
+  expect(code).toBe(2);
+  expect(stderr).toContain("fields");
+});
+
+// --- status ---------------------------------------------------------------------
+
+test("status reports the key source without printing the key", async () => {
+  const { stdout, code } = await run(["status"]);
+  expect(code).toBe(0);
+  const s = JSON.parse(stdout);
+  expect(s.authenticated).toBe(true);
+  expect(s.source).toBe("TABSTACK_API_KEY env");
+  expect(stdout).not.toContain("test-key");
+});
+
+test("status when unauthenticated says so and still exits 0", async () => {
+  const { stdout, code } = await run(["status"], {
+    env: { TABSTACK_API_KEY: "", TABSTACK_CONFIG_DIR: join(configDir, "status-none") },
+  });
+  expect(code).toBe(0);
+  expect(JSON.parse(stdout).authenticated).toBe(false);
+});
+
+// --- global flags ----------------------------------------------------------------
+
+test("--base-url flag overrides the env var", async () => {
+  const { stdout, code } = await run(["extract", "markdown", "https://example.com", "--base-url", base], {
+    env: { TABSTACK_BASE_URL: "http://localhost:1" }, // unroutable unless the flag wins
+  });
+  expect(code).toBe(0);
+  expect(JSON.parse(stdout).content).toContain("# Hello");
+});
+
+test("--timeout aborts a slow non-streaming call", async () => {
+  const { stderr, code } = await run(["extract", "markdown", "https://slow.example.com", "--timeout", "0.1"]);
+  expect(code).toBe(1);
+  expect(stderr).toContain("timed out");
+});
+
+test("an invalid -o value is a usage error (exit 2)", async () => {
+  const { stderr, code } = await run(["extract", "markdown", "https://example.com", "-o", "yaml"]);
+  expect(code).toBe(2);
+  expect(stderr).toContain("--output");
 });

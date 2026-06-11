@@ -9,7 +9,14 @@
  * with the HTTP status attached, so the CLI can print one clean line to stderr.
  */
 
-import { BASE_URL } from "./config";
+import { getBaseUrl } from "./config";
+
+/** Optional timeout (seconds) for non-streaming calls, set by --timeout. */
+let requestTimeoutSecs: number | undefined;
+
+export function setRequestTimeout(seconds: number): void {
+  requestTimeoutSecs = seconds;
+}
 
 export class TabstackError extends Error {
   status: number;
@@ -46,11 +53,20 @@ export async function postJson<T = unknown>(
   body: unknown,
   apiKey: string,
 ): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method: "POST",
-    headers: headers(apiKey),
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${getBaseUrl()}${path}`, {
+      method: "POST",
+      headers: headers(apiKey),
+      body: JSON.stringify(body),
+      signal: requestTimeoutSecs ? AbortSignal.timeout(requestTimeoutSecs * 1000) : undefined,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      throw new TabstackError(0, `request timed out after ${requestTimeoutSecs}s`);
+    }
+    throw err;
+  }
   if (!res.ok) await raise(res);
   return (await res.json()) as T;
 }
@@ -75,7 +91,7 @@ export async function* postStream(
   body: unknown,
   apiKey: string,
 ): AsyncGenerator<SseEvent> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetch(`${getBaseUrl()}${path}`, {
     method: "POST",
     headers: headers(apiKey, "text/event-stream"),
     body: JSON.stringify(body),

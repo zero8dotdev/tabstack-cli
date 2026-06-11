@@ -2,3 +2,4 @@ node_modules/
 tabstack
 *.bun-build
 .DS_Store
+enrichment/

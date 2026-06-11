@@ -34,8 +34,8 @@ tabstack research "tabs vs spaces: what do the major style guides actually recom
 tabstack automate "find the top 3 trending repos and their star counts" \
   --url https://github.com/trending
 
-# Pipe it like any good Unix citizen
-tabstack extract markdown https://example.com | wc -w
+# Pipe it like any good Unix citizen — piped output is JSON automatically
+tabstack extract markdown https://example.com | jq -r .content | wc -w
 ```
 
 Fun fact: the Product Hunt example above is how this repo checked Tabstack's
@@ -81,11 +81,13 @@ verifies the key with one cheap API call; skip that with `--no-verify`.
 ```text
 tabstack login                                         Open console & store an API key
 tabstack logout                                        Remove the stored API key
-tabstack extract markdown <url>                        Page → clean markdown
+tabstack status                                        How your key resolves (never prints it)
+tabstack extract markdown <url> [--metadata]           Page → clean markdown
 tabstack extract json <url> --schema S                 Page → JSON matching a schema
 tabstack generate json <url> --schema S --instructions T   AI-transform a page → JSON
 tabstack research "<query>"                            Multi-source research (streaming)
 tabstack automate "<task>" [--url U]                   Browser automation (streaming)
+tabstack input <request-id> --data D                   Answer a paused automation
 ```
 
 Run `tabstack help` for the full flag reference.
@@ -115,12 +117,14 @@ tabstack generate json https://blog.example.com/post \
 ### Research (streaming)
 
 Progress is printed to **stderr**; the final markdown report goes to **stdout**,
-so you can redirect it cleanly. `--json` emits the full `complete` payload.
+so you can redirect it cleanly. In JSON mode the stream is NDJSON, one event
+per line.
 
 ```bash
 tabstack research "approaches to browser automation for AI agents" --mode fast
-tabstack research "EU vs US AI regulation" --mode balanced > report.md
-tabstack research "competitor pricing" --json | jq .metadata.citedPages
+tabstack research "EU vs US AI regulation" --mode balanced -o pretty > report.md
+tabstack research "competitor pricing" \
+  | jq -r 'select(.event=="complete") | .data.metadata.citedPages'
 ```
 
 ### Automate (streaming)
@@ -137,12 +141,26 @@ tabstack automate "fill the contact form and submit" \
   --data @form.json --allow-actions --max-iterations 30
 ```
 
+When an automation pauses and asks for input (`interactive:form_data:request`),
+the CLI prints the request id and how to answer it:
+
+```bash
+tabstack input <request-id> --data '{"fields":[{"ref":"field1","value":"yes"}]}'
+tabstack input <request-id> --data '{"cancelled":true}'    # decline
+```
+
 ## Output conventions
 
 - **stdout** — the data (markdown, JSON, report, final answer). Pipeable.
 - **stderr** — progress, status, citations, errors.
-- **`--json`** — machine-readable JSON on every data command.
-- **exit code** — `0` on success, `1` on any error (usage, auth, or API).
+- **Output mode** — pretty (human-readable) on a TTY, JSON when piped, so
+  `tabstack ... | jq .` just works. Force with `-o pretty|json` (`--json` is
+  shorthand for `-o json`). Streaming commands emit NDJSON in JSON mode.
+- **Color** — disabled when piped, with `--no-color`, or via `NO_COLOR`.
+- **exit code** — `0` success · `1` runtime/API error · `2` usage error ·
+  `3` the task itself reported failure.
+- **`--base-url <url>`** / `TABSTACK_BASE_URL` for self-hosted or staging;
+  `--timeout <seconds>` for non-streaming calls.
 
 ## Endpoints used
 
@@ -153,11 +171,12 @@ tabstack automate "fill the contact form and submit" \
 | `generate json`    | `POST /v1/generate/json`    | JSON      |
 | `research`         | `POST /v1/research`         | SSE       |
 | `automate`         | `POST /v1/automate`         | SSE       |
+| `input`            | `POST /v1/automate/{id}/input` | JSON   |
 
 ## Develop
 
 ```bash
-bun test                          # mock-server end-to-end tests (20 tests)
+bun test                          # mock-server end-to-end tests (33 tests)
 bun x -p typescript tsc --noEmit  # typecheck
 bun run start --help
 ```
@@ -180,5 +199,7 @@ test/
 - `--schema` and `--data` accept `@file`, `-` (stdin), or inline JSON;
   `--instructions` accepts `@file`, `-`, or a literal string.
 - `balanced` research mode requires a paid Tabstack plan.
-- `automate` interactive (human-in-the-loop) form filling is not wired into
-  this CLI yet; runs are non-interactive.
+- Feature parity with the official
+  [Mozilla-Ocho/tabstack-cli](https://github.com/Mozilla-Ocho/tabstack-cli)
+  (Go), plus two extras: safe-by-default `automate` guardrails and a
+  browser-opening `login` that verifies the key before storing it.

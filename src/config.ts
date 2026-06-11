@@ -9,10 +9,17 @@ import { homedir } from "os";
 import { join } from "path";
 import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync, chmodSync } from "fs";
 
-/** API base URL. Override with TABSTACK_BASE_URL for self-hosted/staging. */
-export const BASE_URL = (
-  process.env.TABSTACK_BASE_URL || "https://api.tabstack.ai"
-).replace(/\/+$/, "");
+/** API base URL: --base-url flag > TABSTACK_BASE_URL env > default. */
+let baseUrl = (process.env.TABSTACK_BASE_URL || "https://api.tabstack.ai").replace(/\/+$/, "");
+
+export function getBaseUrl(): string {
+  return baseUrl;
+}
+
+/** Apply a --base-url override (called once from the CLI entry point). */
+export function setBaseUrl(url: string): void {
+  baseUrl = url.replace(/\/+$/, "");
+}
 
 /** Where `tabstack login` stores the key. Honors XDG; override for tests. */
 export const CONFIG_DIR =
@@ -31,6 +38,7 @@ export const ENDPOINTS = {
   generateJson: "/v1/generate/json",
   research: "/v1/research",
   automate: "/v1/automate",
+  automateInput: (requestId: string) => `/v1/automate/${encodeURIComponent(requestId)}/input`,
 } as const;
 
 /**
@@ -42,14 +50,29 @@ export const ENDPOINTS = {
  * Throws a clear, actionable error if none are present.
  */
 export function getApiKey(override?: string): string {
-  const key = override || process.env.TABSTACK_API_KEY || readStoredKey();
-  if (!key) {
+  const resolved = resolveKey(override);
+  if (!resolved) {
     throw new Error(
       "Not authenticated. Run 'tabstack login', set TABSTACK_API_KEY, or pass --api-key <key>.\n" +
         "Create a key at " + CONSOLE_URL + " (API Keys → Create New API Key).",
     );
   }
-  return key;
+  return resolved.key;
+}
+
+export type KeySource = "--api-key flag" | "TABSTACK_API_KEY env" | "config file";
+
+/**
+ * Resolve the key together with where it came from, for `tabstack status`.
+ * Never returns or prints the key value to the user — only its source.
+ */
+export function resolveKey(override?: string): { key: string; source: KeySource } | undefined {
+  if (override) return { key: override, source: "--api-key flag" };
+  if (process.env.TABSTACK_API_KEY)
+    return { key: process.env.TABSTACK_API_KEY, source: "TABSTACK_API_KEY env" };
+  const stored = readStoredKey();
+  if (stored) return { key: stored, source: "config file" };
+  return undefined;
 }
 
 /** Read the stored API key, or undefined if not logged in / unreadable. */
