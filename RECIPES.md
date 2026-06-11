@@ -1,37 +1,42 @@
-# The Web Is a Function Call: Ten Recipes
+# 🍳 Recipes
 
-For thirty years, the deal with search engines was: you type, they list, you click, you read, you copy. Every integration with the web's knowledge went through a human doing ctrl+C at the end of it.
+![10 recipes](https://img.shields.io/badge/recipes-10-orange) ![heat](https://img.shields.io/badge/heat-🟢🟢🟢🟢🟡🟡🟡🟡🔴🔴-lightgrey) ![requires](https://img.shields.io/badge/requires-tabstack%20login-blue)
 
-That deal is over. Programmable search engines don't return ten blue links. They return *answers with citations*, *JSON shaped like your schema*, or *a finished browser session*. The web stopped being a place you visit and became a standard library you call.
+> [!NOTE]
+> For thirty years the deal with search engines was: you type, they list, you click, you copy. **That deal is over.** A programmable search engine returns answers with citations, JSON shaped like your schema, or a finished browser session. The web stopped being a place you visit and became a standard library you call.
 
-Four primitives cover almost everything:
+## The four verbs
 
-- **`extract(url, schema)`** — any page in, your types out. The web as a database you never have to ETL.
-- **`research(query)`** — multi-source search that reads the results for you and returns a synthesized answer with cited sources. Search that shows its work.
-- **`generate(url, instructions, schema)`** — fetch a page and transform it: summarize, classify, translate, grade.
-- **`automate(task)`** — a browser that browses for you, streaming progress events, pausing to ask when it needs a human.
+| Verb | In | Out | Feels like |
+|------|----|----|------------|
+| `extract` | URL + JSON schema | Your types, filled in | The web as a database |
+| `research` | A question | Cited, synthesized answer | Search that shows its work |
+| `generate` | URL + instructions + schema | The page, transformed | `map()` over a webpage |
+| `automate` | A task in plain English | A browser does it, streaming events | An intern with a guardrail |
 
-Everything below runs on those four verbs through this CLI. Data to stdout, progress to stderr, JSON when piped — so everything composes with `jq`, `cron`, and `&&`.
+Everything composes because of three rules: **data → stdout, progress → stderr, JSON when piped.** Your old friends `jq`, `cron`, and `&&` do the rest.
 
-## What changes when search is programmable
+## 📋 The menu
 
-**The web becomes typed.** The biggest tax on web data was never fetching it — it was parsing it. Selectors break, layouts shift, scrapers rot. Schema-shaped extraction inverts the contract: you declare the output type, the engine figures out the page. When the page redesigns, your schema doesn't care.
+| # | Recipe | Heat | Verbs | The dish |
+|---|--------|:----:|-------|----------|
+| 1 | [Hacker News, but typed](#-1-hacker-news-but-typed) | 🟢 | `extract` | The front page as a typed feed |
+| 2 | [Docs → context](#-2-docs--context) | 🟢 | `extract` | Any page, clean, in your clipboard |
+| 3 | [The price tag](#-3-the-price-tag) | 🟢 | `extract` | An exit code that watches prices |
+| 4 | [Changelog roulette](#-4-changelog-roulette) | 🟢 | `generate` | "Does this release break *me*?" |
+| 5 | [The star drift detector](#-5-the-star-drift-detector) | 🟡 | `extract` | Catch your content lying |
+| 6 | [The citation machine](#-6-the-citation-machine) | 🟡 | `research` | ADRs with receipts |
+| 7 | [CI for facts](#-7-ci-for-facts) | 🟡 | `generate` | Fail the build when the landing page lies |
+| 8 | [The geo sleuth](#-8-the-geo-sleuth) | 🟡 | `extract` | One pricing page, three countries, one diff |
+| 9 | [Forms with a conscience](#-9-forms-with-a-conscience) | 🔴 | `automate` + `input` | Human-in-the-loop, for real |
+| 10 | [The post that fact-checks itself](#-10-the-post-that-fact-checks-itself) | 🔴 | all of them | Content with a pulse |
 
-**Citations become data.** Research APIs return sources as structured fields, not vibes. That means you can *require* them — fail a pipeline when a claim has no source, diff citations between runs, build docs that link their evidence. The difference between an LLM that sounds right and a pipeline that is right is a `citedPages` array you can assert on.
+---
 
-**Content rot becomes measurable.** Eleven weeks after [a comparison of agentic coding tools](https://zero8.dev/blog/state-of-agentic-harnesses-march-2026) was published, an enrichment pipeline re-extracted every number in it. The fastest-moving row had drifted 59%. Two products had been renamed. The [June follow-up](https://zero8.dev/blog/state-of-agentic-harnesses-june-2026) was largely *written from the diff*. Static content decays at a knowable rate now — which means you can budget for it, monitor it, and automate the refresh.
+### 🟢 1. Hacker News, but typed
 
-**Agents finally get clean input.** A raw page is 400KB of div soup; the markdown extraction is 4KB of signal. If you're feeding web content to an LLM, that's a 100× token difference *before* you've done anything clever. Clean markdown in, structured JSON out is the whole game for agent context.
-
-**The last mile gets a protocol.** Automation APIs stream progress as events and pause mid-task to request human input — form values, a confirmation, a decline — then resume. Human-in-the-loop stops being a TODO comment and becomes an event type you handle.
-
-## Ten recipes, light to hard
-
-Warm-ups first, then things you can put in CI, then things that will make your coworkers ask what exactly it is you do all day.
-
-### 🟢 Light
-
-**1. Hacker News, but typed.** The front page as a typed feed, no RSS, no parser.
+**You get:** the front page as structured data. No RSS, no parser, no `BeautifulSoup`.
+**Pairs with:** your terminal greeting, a Slack webhook, breakfast.
 
 ```bash
 tabstack extract json https://news.ycombinator.com \
@@ -41,13 +46,39 @@ tabstack extract json https://news.ycombinator.com \
   | jq -r '.stories[:5][] | "\(.points)▲  \(.title)"'
 ```
 
-**2. Docs → context.** Any docs page as clean markdown, straight into your prompt, your clipboard, or your agent's context window.
+<details>
+<summary>📟 Actual output (today, unedited)</summary>
+
+```text
+790▲  Show HN: Homebrew 6.0.0
+81▲   Shall we play a game? – LLMs use tactical nukes in 95% of simulations
+375▲  MiMo Code is now released and open-source
+23▲   Show HN: FablePool – pool money behind a prompt, and Fable builds it in public
+279▲  Petition to Withdraw Canada's Bill C-22
+```
+
+</details>
+
+---
+
+### 🟢 2. Docs → context
+
+**You get:** any docs page as clean markdown — 4KB of signal instead of 400KB of div soup.
+**Pairs with:** your clipboard, your agent's context window, a 100× token discount.
 
 ```bash
 tabstack extract markdown https://bun.sh/docs/api/spawn | jq -r .content | pbcopy
 ```
 
-**3. The price tag.** Exit non-zero when the thing you want drops below your number. Cron it and let `&&` do the notifying.
+> [!TIP]
+> Piped output is JSON automatically — that's why the `jq -r .content` is there. On a TTY you'd just see the markdown.
+
+---
+
+### 🟢 3. The price tag
+
+**You get:** an exit code that knows when to buy.
+**Pairs with:** `cron`, `&&`, impulse control.
 
 ```bash
 tabstack extract json "$PRODUCT_URL" \
@@ -55,19 +86,29 @@ tabstack extract json "$PRODUCT_URL" \
   | jq -e '.price < 499' && open "$PRODUCT_URL"
 ```
 
-**4. Changelog roulette.** Before you bump that dependency: fetch its releases page and ask the one question you actually have.
+`jq -e` exits non-zero when the condition is false. The whole alerting system is the shell.
+
+---
+
+### 🟢 4. Changelog roulette
+
+**You get:** the one answer you actually wanted from 40 release notes.
+**Pairs with:** dependabot anxiety.
 
 ```bash
 tabstack generate json https://github.com/sveltejs/kit/releases \
-  --instructions "I'm on @sveltejs/kit 2.x using adapter-cloudflare. Anything in recent releases that breaks me?" \
+  --instructions "I'm on @sveltejs/kit 2.x with adapter-cloudflare. Anything in recent releases that breaks me?" \
   --schema '{"type":"object","properties":{"breaking":{"type":"boolean"},
-    "verdict":{"type":"string"},"releases_checked":{"type":"array","items":{"type":"string"}}}}' \
+    "verdict":{"type":"string"}}}' \
   | jq -r '.verdict'
 ```
 
-### 🟡 Medium
+---
 
-**5. The star drift detector.** Re-extract every number a page claims and diff against reality. This is [a real script](./scripts/enrich-post.sh) — it caught a 59% drift in a published post.
+### 🟡 5. The star drift detector
+
+**You get:** proof that your published numbers are stale.
+**Pairs with:** humility.
 
 ```bash
 for repo in anthropics/claude-code anomalyco/opencode openai/codex; do
@@ -77,7 +118,25 @@ for repo in anthropics/claude-code anomalyco/opencode openai/codex; do
 done
 ```
 
-**6. The citation machine.** Architecture decisions with receipts. Research streams NDJSON when piped — one event per line — so `jq` can split the report from its sources.
+<details>
+<summary>📟 What it caught in a real post (11 weeks of drift)</summary>
+
+| Repo | Post claimed | Live | Drift |
+|------|-------------:|-----:|------:|
+| anthropics/claude-code | 83,000 | 131,792 | **+59%** |
+| anomalyco/opencode | 130,700 | 173,196 | +33% |
+| openai/codex | 67,700 | 90,457 | +34% |
+
+Two of the ten tools in that post had also been *renamed*. The follow-up post was written from this diff — see recipe 10.
+
+</details>
+
+---
+
+### 🟡 6. The citation machine
+
+**You get:** architecture decision records with receipts.
+**Pairs with:** the colleague who asks "source?" in every review.
 
 ```bash
 tabstack research "CRDTs vs operational transforms for a collaborative editor in 2026" \
@@ -87,7 +146,15 @@ jq -r 'select(.event=="complete") | .data.metadata.citedPages[] | "- [\(.title)]
   /tmp/r.ndjson >> docs/adr/007-crdts.md
 ```
 
-**7. CI for facts.** Your landing page says "trusted by 500+ teams" and "sub-100ms p99." Are those still true? A weekly GitHub Action that extracts your own claims and fails the build on drift. Content rot, caught like a failing test.
+> [!TIP]
+> Piped research streams **NDJSON — one event per line** — so `jq 'select(.event=="...")'` is your event handler. No SSE parser, no library, no drama.
+
+---
+
+### 🟡 7. CI for facts
+
+**You get:** a build that fails when your landing page lies.
+**Pairs with:** a weekly GitHub Action and marketing's forgiveness.
 
 ```bash
 tabstack generate json https://yoursite.com \
@@ -97,7 +164,14 @@ tabstack generate json https://yoursite.com \
   | jq -e '.claims | length > 0'
 ```
 
-**8. The geo sleuth.** Same page, three countries, one diff. Pricing pages are rarely as global as they claim.
+"Trusted by 500+ teams." "Sub-100ms p99." Cool — `assert` it. Content rot caught like a failing test, because that's what it is.
+
+---
+
+### 🟡 8. The geo sleuth
+
+**You get:** the same pricing page from three countries, diffed.
+**Pairs with:** the phrase "regional pricing strategy."
 
 ```bash
 for cc in US GB IN; do
@@ -107,27 +181,73 @@ for cc in US GB IN; do
 done
 ```
 
-### 🔴 Hard
+---
 
-**9. Forms with a conscience.** Browser automation that fills a form from JSON — but read-only by default (the CLI injects a no-purchases guardrail unless you opt out), and when the agent hits a field it can't answer, it *pauses and asks you*. Answer from a second terminal; the stream resumes.
+### 🔴 9. Forms with a conscience
+
+**You get:** a browser that fills forms from JSON, can't buy anything unless you say so, and *asks you* when it's stuck.
+**Pairs with:** conference season.
 
 ```bash
 tabstack automate "register for the conference using my details" \
   --url "$CONF_URL" --data @me.json --allow-actions
+```
 
-# stream pauses: input requested (id: req-7f3a)…
+<details>
+<summary>📟 What the pause looks like mid-stream</summary>
+
+```text
+· navigated: https://conf.example.com/register
+· action: fill (name, email, company)
+· input requested (expires in ~2 minutes)
+  respond with: tabstack input req-7f3a --data '{"fields":[{"ref":"dietary","value":"..."}]}'
+  or decline:   tabstack input req-7f3a --data '{"cancelled":true}'
+```
+
+Answer from a second terminal; the stream resumes where it paused:
+
+```bash
 tabstack input req-7f3a --data '{"fields":[{"ref":"dietary","value":"vegetarian"}]}'
 ```
 
-**10. The blog post that fact-checks itself.** The full loop: a scheduled job re-extracts every claim in a published post, researches what changed, regenerates the drift table, and opens a PR when reality has moved more than your threshold. Extract → generate → research → report, composed in ~100 lines of shell. This isn't hypothetical — [the June edition of the harness comparison](https://zero8.dev/blog/state-of-agentic-harnesses-june-2026) was produced by exactly this pipeline, using [`scripts/enrich-post.sh`](./scripts/enrich-post.sh).
+</details>
+
+> [!WARNING]
+> `automate` is **read-only by default** — the CLI injects a "browse and extract only" guardrail unless you pass `--allow-actions` or your own `--guardrails`. The flag is the consent.
+
+---
+
+### 🔴 10. The post that fact-checks itself
+
+**You get:** published content with a pulse — a scheduled job re-extracts every claim, researches what changed, and reports the drift.
+**Pairs with:** recipe 5, a cron schedule, and the quiet confidence of being right on purpose.
+
+```mermaid
+flowchart LR
+    A[⏰ cron] --> B[extract markdown<br/>the post itself]
+    B --> C[generate json<br/>its claims, typed]
+    C --> D[extract json × N<br/>live values for each claim]
+    C --> E[research<br/>what changed since?]
+    D --> F[📄 report.md<br/>drift table + citations + FAQ JSON-LD]
+    E --> F
+    F --> G{drift > threshold?}
+    G -- yes --> H[🔀 open PR]
+    G -- no --> A
+```
 
 ```bash
 ./scripts/enrich-post.sh https://yoursite.com/blog/your-stale-masterpiece
-# → enrichment/<slug>/report.md: drift table, cited updates, FAQ JSON-LD
+# → enrichment/<slug>/report.md
 ```
 
-## The point
+This isn't hypothetical. [The June 2026 edition](https://zero8.dev/blog/state-of-agentic-harnesses-june-2026) of an agentic-tools comparison was produced by exactly this loop — [`scripts/enrich-post.sh`](./scripts/enrich-post.sh), ~100 lines of shell, every number re-extracted, every development researched and cited. The [March original](https://zero8.dev/blog/state-of-agentic-harnesses-march-2026) had drifted up to 59% in eleven weeks.
 
-None of these recipes is about scraping. Scraping was adversarial — you against the markup. This is declarative: you describe the shape of the truth you need, and the engine deals with the web's mess. The interesting work moves up a level, to the questions you ask and the pipelines you compose.
+---
+
+## Why this isn't scraping
+
+Scraping was adversarial — you against the markup, and the markup always won eventually. Selectors break, layouts shift, parsers rot. This is declarative: **you describe the shape of the truth you need, and the engine deals with the web's mess.** When the page redesigns, your schema doesn't care.
+
+The interesting work moves up a level — to the questions you ask and the pipelines you compose.
 
 The web was always the world's largest database. It just took thirty years to get a query language.
