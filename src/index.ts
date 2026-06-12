@@ -467,6 +467,10 @@ async function main(): Promise<void> {
     return;
   }
 
+  // Global flags apply to every command — including login's verify call,
+  // which must honor --base-url/--timeout/--no-color.
+  const outMode = setupGlobals(args);
+
   // Auth commands don't need an existing key.
   if (command === "login") {
     await login({
@@ -480,8 +484,6 @@ async function main(): Promise<void> {
     logout();
     return;
   }
-
-  const outMode = setupGlobals(args);
 
   // Each command validates its own args BEFORE resolving the API key, so a
   // usage mistake prints a Usage: line rather than an auth error.

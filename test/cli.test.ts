@@ -431,6 +431,16 @@ test("status when unauthenticated says so and still exits 0", async () => {
 
 // --- global flags ----------------------------------------------------------------
 
+test("login honors --base-url for the verification call", async () => {
+  const loginDir = join(configDir, "login-baseurl");
+  const { code } = await run(["login", "--with-key", "good-key", "--base-url", base], {
+    // env points somewhere unroutable; success proves the flag won
+    env: { TABSTACK_API_KEY: "", TABSTACK_BASE_URL: "http://localhost:1", TABSTACK_CONFIG_DIR: loginDir },
+  });
+  expect(code).toBe(0);
+  expect(JSON.parse(readFileSync(join(loginDir, "config.json"), "utf8")).apiKey).toBe("good-key");
+});
+
 test("--base-url flag overrides the env var", async () => {
   const { stdout, code } = await run(["extract", "markdown", "https://example.com", "--base-url", base], {
     env: { TABSTACK_BASE_URL: "http://localhost:1" }, // unroutable unless the flag wins
