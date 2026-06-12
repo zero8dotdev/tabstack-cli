@@ -445,6 +445,18 @@ test("--timeout aborts a slow non-streaming call", async () => {
   expect(stderr).toContain("timed out");
 });
 
+test("--flag=value syntax works and does not eat the next argument", async () => {
+  const { stdout, code } = await run(["extract", "markdown", "https://example.com", "--output=json"]);
+  expect(code).toBe(0);
+  expect(JSON.parse(stdout).content).toContain("# Hello");
+});
+
+test("subcommand --help prints help and exits 0", async () => {
+  const { stdout, code } = await run(["research", "--help"]);
+  expect(code).toBe(0);
+  expect(stdout).toContain("tabstack <command>");
+});
+
 test("an invalid -o value is a usage error (exit 2)", async () => {
   const { stderr, code } = await run(["extract", "markdown", "https://example.com", "-o", "yaml"]);
   expect(code).toBe(2);

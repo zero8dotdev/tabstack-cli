@@ -81,6 +81,17 @@ function usage(message: string): never {
   throw new UsageError(message);
 }
 
+/** Expand "--flag=value" (and "-o=json") into ["--flag", "value"]. */
+function expandEquals(args: string[]): string[] {
+  return args.flatMap((a) => {
+    if (a.length > 1 && a.startsWith("-") && a.includes("=")) {
+      const eq = a.indexOf("=");
+      return [a.slice(0, eq), a.slice(eq + 1)];
+    }
+    return [a];
+  });
+}
+
 /**
  * Apply global flags (--base-url, --timeout, --no-color) and resolve the
  * output mode. Called once before any command runs.
@@ -443,10 +454,11 @@ function cmdStatus(args: string[], outMode: OutputMode): void {
 // =============================================================================
 
 async function main(): Promise<void> {
-  const args = process.argv.slice(2);
+  const args = expandEquals(process.argv.slice(2));
   const command = args[0];
 
-  if (!command || command === "help" || command === "--help" || command === "-h") {
+  // -h/--help works anywhere, not just as the first token.
+  if (!command || command === "help" || args.includes("--help") || args.includes("-h")) {
     console.log(HELP);
     return;
   }
