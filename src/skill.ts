@@ -51,6 +51,26 @@ JSON, or URL → clean markdown), \`research\` (query → cited report),
   learned per-call costs by verb — check it before a many-call pipeline.
   429s auto-retry honoring the rate-limit reset, so don't add manual sleeps.
 
+## extract vs research — the measured rule
+
+Two controlled experiments (real credits, adversarial judge) found research's
+synthesis lossy in both runs and its premium unjustified whenever sources were
+nameable:
+
+1. **Can you name the URL(s) — or get them with one cheap search?** Extract
+   each (~10 cr/page) and synthesize in-context. This matched or beat research
+   on completeness and faithfulness at 4–25x lower cost, even on a
+   cross-source sentiment question.
+2. **Breakeven: 1 research ≈ 25 extracts.** Buy research only when discovery
+   is the hard part — unknown landscape, "who has covered X?", multi-hop
+   questions where each source reveals the next.
+3. **Never use research as a fact pipe.** Its synthesis dropped key data in
+   both experiments. Use it for source discovery, then extract the cited
+   pages before asserting numbers, quotes, or dates.
+4. **Exception:** if context can't fit the raw pages and a one-paragraph
+   cited gist suffices, research's compression has value — accept the
+   documented fidelity loss.
+
 ## Example: page → typed data
 
 \`\`\`bash

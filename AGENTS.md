@@ -34,6 +34,11 @@ the API handle the page.
 - **Budget:** `tabstack usage --json` → estimated tokens remaining + learned
   per-verb cost. Check it before many-call pipelines. 429s auto-retry
   honoring the rate-limit reset — do not add manual sleeps or backoff.
+- **extract vs research (measured):** default to extract. If you can name the
+  URLs, extract them (~10 cr/page) and synthesize in-context — beats research
+  on quality at 4–25x lower cost. 1 research ≈ 25 extracts; buy it only when
+  source discovery is the hard part, and even then extract the pages it cites
+  before trusting specific numbers or quotes.
 
 ## The cookbook is machine-readable
 
