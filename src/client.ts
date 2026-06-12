@@ -102,12 +102,17 @@ export async function* postStream(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let heldCR = false; // a trailing \r may be half of a \r\n split across chunks
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+  // SSE allows \r\n, \n, or \r line endings — normalize everything to \n.
+  const toLF = (chunk: string): string => {
+    let text = (heldCR ? "\r" : "") + chunk;
+    heldCR = text.endsWith("\r");
+    if (heldCR) text = text.slice(0, -1);
+    return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  };
 
+  function* drainFrames(): Generator<SseEvent> {
     // SSE frames are separated by a blank line.
     let sep: number;
     while ((sep = buffer.indexOf("\n\n")) >= 0) {
@@ -116,6 +121,23 @@ export async function* postStream(
       const evt = parseFrame(frame);
       if (evt) yield normalize(evt);
     }
+  }
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += toLF(decoder.decode(value, { stream: true }));
+    yield* drainFrames();
+  }
+
+  // Stream ended: flush the decoder and any held \r, then emit whatever
+  // remains — servers may omit the blank line after the final frame.
+  buffer += toLF(decoder.decode());
+  if (heldCR) buffer += "\n";
+  yield* drainFrames();
+  if (buffer.trim()) {
+    const evt = parseFrame(buffer);
+    if (evt) yield normalize(evt);
   }
 }
 

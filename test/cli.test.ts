@@ -47,6 +47,17 @@ beforeAll(() => {
         return Response.json({ summary: "A short summary." });
       }
       if (url.pathname === "/v1/research") {
+        const q = (body as any).query ?? "";
+        // Rude variants: CRLF line endings, and no blank line after the
+        // final frame — both legal SSE that the parser must survive.
+        if (q.includes("crlf")) {
+          const sse = `event: start\r\ndata: {"message":"go"}\r\n\r\nevent: complete\r\ndata: ${JSON.stringify({ report: "# CRLF Report" })}\r\n\r\n`;
+          return new Response(sse, { headers: { "Content-Type": "text/event-stream" } });
+        }
+        if (q.includes("unterminated")) {
+          const sse = `event: start\ndata: {"message":"go"}\n\nevent: complete\ndata: ${JSON.stringify({ report: "# Last Frame Report" })}\n`;
+          return new Response(sse, { headers: { "Content-Type": "text/event-stream" } });
+        }
         const sse = [
           `event: start\ndata: ${JSON.stringify({ message: "go" })}\n\n`,
           `event: complete\ndata: ${JSON.stringify({ report: "# Report\nbody", metadata: { citedPages: [{ title: "Src", url: "https://e.com" }] } })}\n\n`,
@@ -150,6 +161,18 @@ test("research -o pretty streams and prints the report to stdout", async () => {
   expect(code).toBe(0);
   expect(stdout).toContain("# Report");
   expect(stderr).toContain("Cited 1 source"); // citations go to stderr
+});
+
+test("research survives CRLF line endings in the SSE stream", async () => {
+  const { stdout, code } = await run(["research", "crlf endings", "-o", "pretty"]);
+  expect(code).toBe(0);
+  expect(stdout).toContain("# CRLF Report");
+});
+
+test("research does not drop a final frame missing its trailing blank line", async () => {
+  const { stdout, code } = await run(["research", "unterminated stream", "-o", "pretty"]);
+  expect(code).toBe(0);
+  expect(stdout).toContain("# Last Frame Report");
 });
 
 test("research piped emits NDJSON, one event per line", async () => {
