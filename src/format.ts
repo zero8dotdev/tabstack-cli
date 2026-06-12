@@ -43,20 +43,24 @@ export function ndjson(event: string, data: unknown): string {
 // NO_COLOR convention (https://no-color.org).
 // ---------------------------------------------------------------------------
 
-let colorEnabled = Boolean(process.stderr.isTTY) && !process.env.NO_COLOR;
+// Gated per stream: dim() goes to stderr, green()/red() go to stdout — each
+// colors only when its own stream is a TTY, so ANSI never leaks into a pipe.
+let colorErr = Boolean(process.stderr.isTTY) && !process.env.NO_COLOR;
+let colorOut = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR;
 
 /** Turn color off (for --no-color). It can never be forced on. */
 export function disableColor(): void {
-  colorEnabled = false;
+  colorErr = false;
+  colorOut = false;
 }
 
-function paint(code: string, text: string): string {
-  return colorEnabled ? `\x1b[${code}m${text}\x1b[0m` : text;
+function paint(enabled: boolean, code: string, text: string): string {
+  return enabled ? `\x1b[${code}m${text}\x1b[0m` : text;
 }
 
-export const dim = (t: string) => paint("2", t);
-export const green = (t: string) => paint("32", t);
-export const red = (t: string) => paint("31", t);
+export const dim = (t: string) => paint(colorErr, "2", t);
+export const green = (t: string) => paint(colorOut, "32", t);
+export const red = (t: string) => paint(colorOut, "31", t);
 
 /** Write a progress/status line to stderr so stdout stays pipeable. */
 export function progress(line: string): void {

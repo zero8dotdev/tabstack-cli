@@ -16,6 +16,9 @@
 
 set -euo pipefail
 
+# Run from anywhere — the CLI entry point is referenced relative to the repo.
+cd "$(dirname "$0")/.."
+
 POST_URL="${1:-https://zero8.dev/blog/state-of-agentic-harnesses-march-2026}"
 SLUG=$(basename "$POST_URL")
 OUT="enrichment/$SLUG"
@@ -82,10 +85,12 @@ echo "→ assembling $OUT/report.md" >&2
   echo
   echo "| Tool | Repo | Article | Live now | Δ |"
   echo "|------|------|--------:|---------:|--:|"
+  # Normalize any numeric shape jq may emit (floats, 1.3e5) to an integer.
+  to_int() { printf '%.0f' "$1" 2>/dev/null || echo 0; }
   while IFS=$'\t' read -r name repo claimed; do
     live=$(jq -r '.stars // empty' "$OUT/live/${repo//\//__}.json" 2>/dev/null || true)
     if [[ -n "$live" && "$live" != "null" ]]; then
-      delta=$(( ${live%.*} - ${claimed%.*} ))
+      delta=$(( $(to_int "$live") - $(to_int "$claimed") ))
       printf '| %s | %s | %s | %s | %+d |\n' "$name" "$repo" "$claimed" "$live" "$delta"
     else
       printf '| %s | %s | %s | _extract failed_ | — |\n' "$name" "$repo" "$claimed"

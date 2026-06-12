@@ -161,6 +161,8 @@ tabstack input <request-id> --data '{"cancelled":true}'    # decline
 - **Output mode** — pretty (human-readable) on a TTY, JSON when piped, so
   `tabstack ... | jq .` just works. Force with `-o pretty|json` (`--json` is
   shorthand for `-o json`). Streaming commands emit NDJSON in JSON mode.
+  `extract json` and `generate json` print JSON in both modes — the JSON *is*
+  the data.
 - **Color** — disabled when piped, with `--no-color`, or via `NO_COLOR`.
 - **exit code** — `0` success · `1` runtime/API error · `2` usage error ·
   `3` the task itself reported failure.
