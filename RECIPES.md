@@ -190,7 +190,7 @@ done
 
 ```bash
 tabstack automate "register for the conference using my details" \
-  --url "$CONF_URL" --data @me.json --allow-actions
+  --url "$CONF_URL" --data @me.json --allow-actions --interactive
 ```
 
 <details>

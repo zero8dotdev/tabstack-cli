@@ -56,9 +56,14 @@ beforeAll(() => {
       if (url.pathname === "/v1/automate") {
         // A task containing "fail" ends with success:false to exercise exit code 3.
         const failed = (body as any).task?.includes("fail");
+        // Like the real API: only pause for input when the body opts in.
+        const pause = (body as any).interactive === true
+          ? `data: ${JSON.stringify({ event: "interactive:form_data:request", data: { requestId: "req-42" } })}\n\n`
+          : "";
         // Wrapped shape: { event, data } inside the SSE data payload.
         const sse =
           `data: ${JSON.stringify({ event: "agent:status", data: { message: "working" } })}\n\n` +
+          pause +
           `data: ${JSON.stringify({ event: "task:completed", data: { finalAnswer: failed ? "could not" : "done", success: !failed } })}\n\n`;
         return new Response(sse, { headers: { "Content-Type": "text/event-stream" } });
       }
@@ -157,6 +162,18 @@ test("automate -o pretty handles wrapped SSE events and prints finalAnswer", asy
   const { stdout, code } = await run(["automate", "do a thing", "--url", "https://example.com", "-o", "pretty"]);
   expect(code).toBe(0);
   expect(stdout.trim()).toBe("done");
+});
+
+test("automate --interactive opts in and surfaces the input request id", async () => {
+  const { stderr, code } = await run(["automate", "do a thing", "--interactive", "-o", "pretty"]);
+  expect(code).toBe(0);
+  expect(stderr).toContain("tabstack input req-42");
+});
+
+test("automate without --interactive never receives an input request", async () => {
+  const { stderr, code } = await run(["automate", "do a thing", "-o", "pretty"]);
+  expect(code).toBe(0);
+  expect(stderr).not.toContain("input requested");
 });
 
 test("automate that reports failure exits 3", async () => {

@@ -145,8 +145,9 @@ tabstack automate "fill the contact form and submit" \
   --data @form.json --allow-actions --max-iterations 30
 ```
 
-When an automation pauses and asks for input (`interactive:form_data:request`),
-the CLI prints the request id and how to answer it:
+Pass `--interactive` to let the agent pause and ask for input mid-task
+(`interactive:form_data:request`) — the CLI prints the request id and how to
+answer it:
 
 ```bash
 tabstack input <request-id> --data '{"fields":[{"ref":"field1","value":"yes"}]}'

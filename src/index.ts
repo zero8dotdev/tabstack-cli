@@ -65,6 +65,7 @@ const BOOLEAN_FLAGS = new Set([
   "--json",
   "--nocache",
   "--metadata",
+  "--interactive",
   "--allow-actions",
   "--no-browser",
   "--no-verify",
@@ -160,6 +161,7 @@ Automate options:
   --data <@file|-|inline>         Context data (e.g. form fields) as JSON
   --guardrails <text>             Safety constraints (default: browse & extract only)
   --allow-actions                 Drop the default read-only guardrail (use with care)
+  --interactive                   Let the agent pause and ask for input (answer with 'tabstack input')
   --max-iterations <n>            Max agent iterations (1-100, default: 50)
   --max-validation-attempts <n>   Max validation attempts (1-10)
   --geo <CC>                      Browse from a country (ISO 3166-1 alpha-2)
@@ -316,7 +318,7 @@ async function cmdResearch(args: string[], outMode: OutputMode): Promise<void> {
 async function cmdAutomate(args: string[], outMode: OutputMode): Promise<void> {
   const task = getPositional(args.slice(1), 0);
   if (!task) {
-    usage('Usage: tabstack automate "<task>" [--url <url>] [--guardrails <text>] [--max-iterations <n>] [--max-validation-attempts <n>] [--data <@file>] [--geo CC]');
+    usage('Usage: tabstack automate "<task>" [--url <url>] [--guardrails <text>] [--interactive] [--max-iterations <n>] [--max-validation-attempts <n>] [--data <@file>] [--geo CC]');
   }
   const apiKey = getApiKey(getArg(args, "--api-key"));
   const body: Record<string, unknown> = { task };
@@ -345,6 +347,8 @@ async function cmdAutomate(args: string[], outMode: OutputMode): Promise<void> {
   if (dataArg) body.data = await resolveJsonArg(dataArg, "--data");
   const geo = getArg(args, "--geo");
   if (geo) body.geoTarget = { country: geo };
+  // The API only emits interactive:form_data:request events when opted in.
+  if (hasFlag(args, "--interactive")) body.interactive = true;
 
   for await (const evt of postStream(ENDPOINTS.automate, body, apiKey)) {
     if (outMode === "json") console.log(ndjson(evt.event, evt.data));
