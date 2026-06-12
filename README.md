@@ -183,7 +183,7 @@ tabstack input <request-id> --data '{"cancelled":true}'    # decline
 ## Develop
 
 ```bash
-bun test                          # mock-server end-to-end tests (33 tests)
+bun test                          # mock-server end-to-end tests (43 tests)
 bun x -p typescript tsc --noEmit  # typecheck
 bun run start --help
 ```
@@ -208,5 +208,8 @@ test/
 - `balanced` research mode requires a paid Tabstack plan.
 - Feature parity with the official
   [Mozilla-Ocho/tabstack-cli](https://github.com/Mozilla-Ocho/tabstack-cli)
-  (Go), plus two extras: safe-by-default `automate` guardrails and a
-  browser-opening `login` that verifies the key before storing it.
+  (Go), plus three extras: safe-by-default `automate` guardrails, a
+  browser-opening `login` that verifies the key before storing it, and a
+  working human-in-the-loop flow — `automate --interactive` actually enables
+  the API's input requests (the official CLI ships `agent input` but no way
+  to turn interactive mode on).
