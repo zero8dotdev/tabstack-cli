@@ -467,6 +467,18 @@ test("subcommand --help prints help and exits 0", async () => {
   expect(stdout).toContain("tabstack <command>");
 });
 
+test("a non-numeric --fetch-timeout is a usage error, not a null on the wire", async () => {
+  const { stderr, code } = await run(["research", "anything", "--fetch-timeout", "abc"]);
+  expect(code).toBe(2);
+  expect(stderr).toContain("--fetch-timeout");
+});
+
+test("an invalid --effort is a usage error (exit 2)", async () => {
+  const { stderr, code } = await run(["extract", "markdown", "https://example.com", "--effort", "turbo"]);
+  expect(code).toBe(2);
+  expect(stderr).toContain("--effort");
+});
+
 test("an invalid -o value is a usage error (exit 2)", async () => {
   const { stderr, code } = await run(["extract", "markdown", "https://example.com", "-o", "yaml"]);
   expect(code).toBe(2);

@@ -113,7 +113,12 @@ function setupGlobals(args: string[]): OutputMode {
 function commonExtractOpts(args: string[]) {
   const opts: Record<string, unknown> = {};
   const effort = getArg(args, "--effort");
-  if (effort) opts.effort = effort;
+  if (effort) {
+    if (!["min", "standard", "max"].includes(effort)) {
+      usage(`--effort must be min, standard, or max (got "${effort}")`);
+    }
+    opts.effort = effort;
+  }
   if (hasFlag(args, "--nocache")) opts.nocache = true;
   const geo = getArg(args, "--geo");
   if (geo) opts.geo_target = { country: geo };
@@ -290,7 +295,13 @@ async function cmdResearch(args: string[], outMode: OutputMode): Promise<void> {
   if (mode) body.mode = mode;
   if (hasFlag(args, "--nocache")) body.nocache = true;
   const fetchTimeout = getArg(args, "--fetch-timeout");
-  if (fetchTimeout) body.fetch_timeout = Number(fetchTimeout);
+  if (fetchTimeout) {
+    const secs = Number(fetchTimeout);
+    if (!Number.isFinite(secs) || secs <= 0) {
+      usage(`--fetch-timeout must be a positive number of seconds (got "${fetchTimeout}")`);
+    }
+    body.fetch_timeout = secs;
+  }
 
   for await (const evt of postStream(ENDPOINTS.research, body, apiKey)) {
     if (outMode === "json") console.log(ndjson(evt.event, evt.data));
