@@ -171,15 +171,22 @@ export function estimateRemaining(state: UsageState): number | undefined {
 const CONSOLE_BASE = () =>
   (process.env.TABSTACK_CONSOLE_URL || "https://console.tabstack.ai").replace(/\/+$/, "");
 
-/** Pull a token count out of dashboard HTML. Exported for tests. */
+/**
+ * Pull the balance out of dashboard HTML. The console phrases it as credits
+ * ("5,750 CREDITS AVAILABLE", "<strong>5,750</strong> credits remaining");
+ * we also accept "tokens" in case the wording shifts. Exported for tests.
+ */
 export function parseTokensFromHtml(html: string): number | undefined {
+  // Markup sits between the number and its label — flatten tags to spaces.
+  const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
   const patterns = [
-    /([\d][\d,.]*)\s*([kKmM])?\s*tokens?\s*(?:left|remaining)/,
-    /tokens?\s*(?:left|remaining)[^0-9]{0,60}?([\d][\d,.]*)\s*([kKmM])?/i,
-    /remaining\s*tokens?[^0-9]{0,60}?([\d][\d,.]*)\s*([kKmM])?/i,
+    /([\d][\d,.]*)\s*([kKmM])?\s*credits?\s*(?:available|remaining|left)/i,
+    /credits?\s*(?:available|remaining|left)[^0-9]{0,40}?([\d][\d,.]*)\s*([kKmM])?/i,
+    /([\d][\d,.]*)\s*([kKmM])?\s*tokens?\s*(?:available|remaining|left)/i,
+    /tokens?\s*(?:available|remaining|left)[^0-9]{0,40}?([\d][\d,.]*)\s*([kKmM])?/i,
   ];
   for (const p of patterns) {
-    const m = html.match(p);
+    const m = text.match(p);
     if (m) {
       let n = Number(m[1].replace(/,/g, ""));
       const suffix = (m[2] ?? "").toLowerCase();
@@ -194,7 +201,7 @@ export function parseTokensFromHtml(html: string): number | undefined {
 export async function syncFromConsole(
   cookie: string,
 ): Promise<{ tokens: number; page: string }> {
-  const pages = ["/usage", "/billing", "/dashboard", "/"];
+  const pages = ["/dashboard", "/", "/usage", "/billing"];
   let sawLogin = false;
   for (const page of pages) {
     const res = await fetch(CONSOLE_BASE() + page, {
@@ -213,6 +220,6 @@ export async function syncFromConsole(
   throw new Error(
     sawLogin
       ? "console session rejected — the cookie has expired; copy a fresh one from your browser and run 'tabstack usage cookie'"
-      : "could not find a token balance on any console page — run 'tabstack usage set <tokens>' manually and please open an issue",
+      : "could not find a credit balance on any console page — run 'tabstack usage set <credits>' manually and please open an issue",
   );
 }

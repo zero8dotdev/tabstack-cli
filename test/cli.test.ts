@@ -54,7 +54,7 @@ beforeAll(() => {
         if (!(req.headers.get("cookie") || "").includes("good-session")) {
           return new Response("<form action='/sessions/new'><input name='email_address'></form>", { headers: { "Content-Type": "text/html" } });
         }
-        return new Response("<html><div class='balance'>12,345 tokens remaining</div></html>", { headers: { "Content-Type": "text/html" } });
+        return new Response("<html><p class='body-l'> 12,345 </p> <span class='ring-1'> CREDITS AVAILABLE </span></html>", { headers: { "Content-Type": "text/html" } });
       }
       if (url.pathname === "/v1/extract/json") {
         return Response.json({ title: "Example" });

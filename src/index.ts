@@ -164,8 +164,8 @@ Commands:
   recipes [n|name]                Browse the cookbook (10 recipes, light to hard)
   skill install [--project]       Install the Claude Code skill (~/.claude/skills)
   skill agents                    Print an AGENTS.md section (skill agents >> AGENTS.md)
-  usage                           Token budget: balance, learned per-call costs, rate limit
-  usage set <tokens>              Calibrate from the console dashboard's "tokens remaining"
+  usage                           Credit budget: balance, learned per-call costs, rate limit
+  usage set <credits>             Calibrate from the console dashboard's credit balance
   usage cookie <value>            Store a console session cookie for automatic sync
   usage sync                      Pull the balance from the console and recalibrate
   help                            Show this help
@@ -551,15 +551,15 @@ async function cmdUsage(args: string[], outMode: OutputMode): Promise<void> {
     const raw = getPositional(args.slice(1), 1);
     const tokens = Number(raw?.replace(/,/g, ""));
     if (!raw || !Number.isFinite(tokens) || tokens < 0) {
-      usage("Usage: tabstack usage set <tokens-remaining>   (the number from the console dashboard)");
+      usage("Usage: tabstack usage set <credits-remaining>   (the number from the console dashboard)");
     }
     const { consumed, callsInWindow } = addCalibration(Math.round(tokens), "manual");
     if (outMode === "json") {
       console.log(json({ calibrated: Math.round(tokens), consumed: consumed ?? null, callsInWindow }));
     } else {
-      console.log(`${green("✓")} calibrated: ${Math.round(tokens).toLocaleString()} tokens remaining`);
+      console.log(`${green("✓")} calibrated: ${Math.round(tokens).toLocaleString()} credits remaining`);
       if (consumed !== undefined)
-        console.log(dimOut(`${consumed.toLocaleString()} tokens consumed across ${callsInWindow} logged calls since last reading — per-verb costs updated.`));
+        console.log(dimOut(`${consumed.toLocaleString()} credits consumed across ${callsInWindow} logged calls since last reading — per-verb costs updated.`));
     }
     return;
   }
@@ -591,7 +591,7 @@ async function cmdUsage(args: string[], outMode: OutputMode): Promise<void> {
     if (outMode === "json") {
       console.log(json({ tokens, page, consumed: consumed ?? null, callsInWindow }));
     } else {
-      console.log(`${green("✓")} synced from console${page}: ${tokens.toLocaleString()} tokens remaining`);
+      console.log(`${green("✓")} synced from console${page}: ${tokens.toLocaleString()} credits remaining`);
       if (consumed !== undefined)
         console.log(dimOut(`${consumed.toLocaleString()} consumed across ${callsInWindow} calls since last reading — per-verb costs updated.`));
     }
@@ -623,17 +623,17 @@ async function cmdUsage(args: string[], outMode: OutputMode): Promise<void> {
   }
 
   if (!last) {
-    console.log("No balance readings yet. Get 'tokens remaining' from the console dashboard, then:");
-    console.log("  tabstack usage set <tokens>        # paste the number");
+    console.log("No balance readings yet. Get the credit balance from the console dashboard, then:");
+    console.log("  tabstack usage set <credits>       # paste the number");
     console.log("  tabstack usage cookie <cookie>     # or store a session cookie and");
     console.log("  tabstack usage sync                #   pull it automatically");
     console.log(dimOut(`\n${ledger.length} calls logged locally so far — they'll price themselves after two readings.`));
     return;
   }
 
-  console.log(`balance:   ${last.tokens.toLocaleString()} tokens (${last.source}, ${new Date(last.ts).toLocaleString()})`);
+  console.log(`balance:   ${last.tokens.toLocaleString()} credits (${last.source}, ${new Date(last.ts).toLocaleString()})`);
   if (remaining !== undefined && remaining !== last.tokens)
-    console.log(`est. now:  ~${remaining.toLocaleString()} tokens`);
+    console.log(`est. now:  ~${remaining.toLocaleString()} credits`);
   if (Object.keys(byVerb).length)
     console.log(`since:     ${Object.entries(byVerb).map(([v, n]) => `${n}× ${v}`).join(", ")}`);
   if (Object.keys(state.learned).length) {
