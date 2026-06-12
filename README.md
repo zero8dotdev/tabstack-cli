@@ -44,7 +44,13 @@ valid JSON matching the schema.
 
 Want more? **[RECIPES.md](./RECIPES.md)** has ten of these, light to hard â€”
 from a typed Hacker News feed to CI that fails when your landing page lies,
-to a blog post that fact-checks itself.
+to a blog post that fact-checks itself. They're also built into the CLI:
+
+```bash
+tabstack recipes        # browse the cookbook
+tabstack recipes 9      # one recipe, copy-paste ready
+tabstack recipes 9 --json | jq .command   # agents eat the cookbook too
+```
 
 ## Install
 
@@ -92,6 +98,7 @@ tabstack generate json <url> --schema S --instructions T   AI-transform a page â
 tabstack research "<query>"                            Multi-source research (streaming)
 tabstack automate "<task>" [--url U]                   Browser automation (streaming)
 tabstack input <request-id> --data D                   Answer a paused automation
+tabstack recipes [n|name]                              The cookbook, in your terminal
 ```
 
 Run `tabstack help` for the full flag reference.

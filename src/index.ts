@@ -21,6 +21,7 @@ import {
   ndjson,
   progress,
   green,
+  dimOut,
   disableColor,
   resolveMode,
   resolveJsonArg,
@@ -29,6 +30,7 @@ import {
   type OutputMode,
 } from "./format";
 import { login, logout } from "./auth";
+import { RECIPES, HEAT_BADGE } from "./recipes";
 
 // =============================================================================
 // Arg parsing helpers
@@ -146,6 +148,7 @@ Commands:
   research <query>                Multi-source autonomous research (streams progress)
   automate <task> [--url U]       Natural-language browser automation (streams progress)
   input <request-id> --data D     Respond to a paused automation that asked for input
+  recipes [n|name]                Browse the cookbook (10 recipes, light to hard)
   help                            Show this help
   version                         Show version
 
@@ -438,6 +441,38 @@ async function cmdInput(args: string[], outMode: OutputMode): Promise<void> {
   else console.log(green("input submitted"));
 }
 
+/** `tabstack recipes [n]` — the cookbook, in the terminal. No network, no key. */
+function cmdRecipes(args: string[], outMode: OutputMode): void {
+  const which = getPositional(args.slice(1), 0);
+
+  if (!which) {
+    if (outMode === "json") {
+      console.log(json(RECIPES));
+      return;
+    }
+    console.log("The cookbook — run 'tabstack recipes <n>' for the full command.\n");
+    for (const r of RECIPES) {
+      console.log(`  ${HEAT_BADGE[r.heat]} ${String(r.n).padStart(2)}. ${r.name}`);
+      console.log(dimOut(`        ${r.verbs.join(" + ")} — ${r.blurb.split(". ")[0].replace(/\.$/, "")}.`));
+    }
+    console.log("\nFull writeup with sample outputs: RECIPES.md in the repo.");
+    return;
+  }
+
+  const n = Number(which);
+  const recipe = RECIPES.find((r) => r.n === n || r.name.toLowerCase().includes(which.toLowerCase()));
+  if (!recipe) usage(`No recipe "${which}". Run 'tabstack recipes' to list all ${RECIPES.length}.`);
+
+  if (outMode === "json") {
+    console.log(json(recipe));
+    return;
+  }
+  console.log(`${HEAT_BADGE[recipe.heat]} ${recipe.n}. ${recipe.name}  ${dimOut(`(${recipe.verbs.join(" + ")})`)}`);
+  console.log(dimOut(recipe.blurb));
+  console.log();
+  console.log(recipe.command);
+}
+
 /** `tabstack status` — how the key resolves, without ever printing it. */
 function cmdStatus(args: string[], outMode: OutputMode): void {
   const resolved = resolveKey(getArg(args, "--api-key"));
@@ -499,6 +534,9 @@ async function main(): Promise<void> {
   // Each command validates its own args BEFORE resolving the API key, so a
   // usage mistake prints a Usage: line rather than an auth error.
   switch (command) {
+    case "recipes":
+      cmdRecipes(args, outMode);
+      break;
     case "status":
       cmdStatus(args, outMode);
       break;

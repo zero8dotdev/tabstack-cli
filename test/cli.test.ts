@@ -429,6 +429,35 @@ test("status when unauthenticated says so and still exits 0", async () => {
   expect(JSON.parse(stdout).authenticated).toBe(false);
 });
 
+// --- recipes ---------------------------------------------------------------------
+
+test("recipes lists all ten, no key or network needed", async () => {
+  const { stdout, code } = await run(["recipes", "-o", "pretty"], {
+    env: { TABSTACK_API_KEY: "", TABSTACK_BASE_URL: "http://localhost:1" },
+  });
+  expect(code).toBe(0);
+  expect(stdout).toContain("10. The post that fact-checks itself");
+});
+
+test("recipes <n> prints a runnable command", async () => {
+  const { stdout, code } = await run(["recipes", "9", "-o", "pretty"]);
+  expect(code).toBe(0);
+  expect(stdout).toContain("--interactive");
+  expect(stdout).toContain("tabstack input");
+});
+
+test("recipes by name match and as JSON for agents", async () => {
+  const { stdout, code } = await run(["recipes", "citation"]);
+  expect(code).toBe(0);
+  expect(JSON.parse(stdout).n).toBe(6);
+});
+
+test("unknown recipe is a usage error (exit 2)", async () => {
+  const { stderr, code } = await run(["recipes", "soufflé"]);
+  expect(code).toBe(2);
+  expect(stderr).toContain("No recipe");
+});
+
 // --- global flags ----------------------------------------------------------------
 
 test("login honors --base-url for the verification call", async () => {

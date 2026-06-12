@@ -59,6 +59,7 @@ function paint(enabled: boolean, code: string, text: string): string {
 }
 
 export const dim = (t: string) => paint(colorErr, "2", t);
+export const dimOut = (t: string) => paint(colorOut, "2", t);
 export const green = (t: string) => paint(colorOut, "32", t);
 export const red = (t: string) => paint(colorOut, "31", t);
 

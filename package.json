@@ -1,6 +1,6 @@
 {
   "name": "tabstack-cli",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Gold-standard Bun CLI for the Tabstack AI web extraction, generation, research, and automation API",
   "type": "module",
   "bin": {
