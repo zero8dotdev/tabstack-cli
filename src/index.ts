@@ -346,7 +346,8 @@ async function cmdAutomate(args: string[], outMode: OutputMode): Promise<void> {
   const dataArg = getArg(args, "--data");
   if (dataArg) body.data = await resolveJsonArg(dataArg, "--data");
   const geo = getArg(args, "--geo");
-  if (geo) body.geoTarget = { country: geo };
+  // Snake_case per the API spec — unlike maxIterations, which really is camel.
+  if (geo) body.geo_target = { country: geo };
   // The API only emits interactive:form_data:request events when opted in.
   if (hasFlag(args, "--interactive")) body.interactive = true;
 

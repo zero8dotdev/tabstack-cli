@@ -60,11 +60,13 @@ beforeAll(() => {
         const pause = (body as any).interactive === true
           ? `data: ${JSON.stringify({ event: "interactive:form_data:request", data: { requestId: "req-42" } })}\n\n`
           : "";
+        // Echo the geo country back so tests can assert the exact wire field.
+        const geoCountry = (body as any).geo_target?.country;
         // Wrapped shape: { event, data } inside the SSE data payload.
         const sse =
           `data: ${JSON.stringify({ event: "agent:status", data: { message: "working" } })}\n\n` +
           pause +
-          `data: ${JSON.stringify({ event: "task:completed", data: { finalAnswer: failed ? "could not" : "done", success: !failed } })}\n\n`;
+          `data: ${JSON.stringify({ event: "task:completed", data: { finalAnswer: geoCountry ? `geo:${geoCountry}` : failed ? "could not" : "done", success: !failed } })}\n\n`;
         return new Response(sse, { headers: { "Content-Type": "text/event-stream" } });
       }
       const inputMatch = url.pathname.match(/^\/v1\/automate\/([^/]+)\/input$/);
@@ -174,6 +176,12 @@ test("automate without --interactive never receives an input request", async () 
   const { stderr, code } = await run(["automate", "do a thing", "-o", "pretty"]);
   expect(code).toBe(0);
   expect(stderr).not.toContain("input requested");
+});
+
+test("automate --geo sends geo_target (snake_case) on the wire", async () => {
+  const { stdout, code } = await run(["automate", "do a thing", "--geo", "GB", "-o", "pretty"]);
+  expect(code).toBe(0);
+  expect(stdout.trim()).toBe("geo:GB"); // mock echoes body.geo_target.country
 });
 
 test("automate that reports failure exits 3", async () => {
