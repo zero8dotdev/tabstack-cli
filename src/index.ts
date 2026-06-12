@@ -31,6 +31,10 @@ import {
 } from "./format";
 import { login, logout } from "./auth";
 import { RECIPES, HEAT_BADGE } from "./recipes";
+import { SKILL_MD, AGENTS_SNIPPET } from "./skill";
+import { homedir } from "os";
+import { join } from "path";
+import { mkdirSync, writeFileSync, existsSync } from "fs";
 
 // =============================================================================
 // Arg parsing helpers
@@ -69,6 +73,7 @@ const BOOLEAN_FLAGS = new Set([
   "--metadata",
   "--interactive",
   "--allow-actions",
+  "--project",
   "--no-browser",
   "--no-verify",
   "--no-color",
@@ -149,6 +154,8 @@ Commands:
   automate <task> [--url U]       Natural-language browser automation (streams progress)
   input <request-id> --data D     Respond to a paused automation that asked for input
   recipes [n|name]                Browse the cookbook (10 recipes, light to hard)
+  skill install [--project]       Install the Claude Code skill (~/.claude/skills)
+  skill agents                    Print an AGENTS.md section (skill agents >> AGENTS.md)
   help                            Show this help
   version                         Show version
 
@@ -478,6 +485,47 @@ function cmdRecipes(args: string[], outMode: OutputMode): void {
   console.log(recipe.command);
 }
 
+/**
+ * `tabstack skill [install|agents]` — distribute the agent integration.
+ * No network, no key; the skill ships inside the binary.
+ */
+function cmdSkill(args: string[], outMode: OutputMode): void {
+  const sub = getPositional(args.slice(1), 0);
+
+  // Print the Claude Code skill to stdout (pipe or redirect anywhere).
+  if (!sub) {
+    console.log(SKILL_MD);
+    return;
+  }
+
+  // Condensed contract for AGENTS.md-reading agents (Codex, Cursor, Copilot…):
+  //   tabstack skill agents >> AGENTS.md
+  if (sub === "agents") {
+    console.log(AGENTS_SNIPPET);
+    return;
+  }
+
+  if (sub === "install") {
+    const root = hasFlag(args, "--project")
+      ? join(process.cwd(), ".claude", "skills", "tabstack")
+      : join(homedir(), ".claude", "skills", "tabstack");
+    const path = join(root, "SKILL.md");
+    const existed = existsSync(path);
+    mkdirSync(root, { recursive: true });
+    writeFileSync(path, SKILL_MD);
+    if (outMode === "json") {
+      console.log(json({ installed: true, updated: existed, path }));
+    } else {
+      console.log(`${green("✓")} skill ${existed ? "updated" : "installed"}: ${path}`);
+      console.log(dimOut("Claude Code picks it up on the next session."));
+      console.log(dimOut("For AGENTS.md-based agents: tabstack skill agents >> AGENTS.md"));
+    }
+    return;
+  }
+
+  usage("Usage: tabstack skill [install [--project] | agents]");
+}
+
 /** `tabstack status` — how the key resolves, without ever printing it. */
 function cmdStatus(args: string[], outMode: OutputMode): void {
   const resolved = resolveKey(getArg(args, "--api-key"));
@@ -541,6 +589,9 @@ async function main(): Promise<void> {
   switch (command) {
     case "recipes":
       cmdRecipes(args, outMode);
+      break;
+    case "skill":
+      cmdSkill(args, outMode);
       break;
     case "status":
       cmdStatus(args, outMode);

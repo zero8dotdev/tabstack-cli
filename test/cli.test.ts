@@ -458,6 +458,38 @@ test("unknown recipe is a usage error (exit 2)", async () => {
   expect(stderr).toContain("No recipe");
 });
 
+// --- skill distribution -----------------------------------------------------------
+
+test("the embedded skill is byte-identical to the repo's SKILL.md", async () => {
+  const { SKILL_MD } = await import("../src/skill");
+  const onDisk = readFileSync(new URL("../.claude/skills/tabstack/SKILL.md", import.meta.url), "utf8");
+  expect(SKILL_MD).toBe(onDisk);
+});
+
+test("skill prints the Claude Code skill with frontmatter", async () => {
+  const { stdout, code } = await run(["skill"]);
+  expect(code).toBe(0);
+  expect(stdout).toContain("name: tabstack");
+  expect(stdout).toContain("recipes --json");
+});
+
+test("skill install writes to ~/.claude/skills/tabstack/SKILL.md", async () => {
+  const fakeHome = mkdtempSync(join(tmpdir(), "tabstack-home-"));
+  const { stdout, code } = await run(["skill", "install"], { env: { HOME: fakeHome } });
+  expect(code).toBe(0);
+  expect(JSON.parse(stdout).installed).toBe(true);
+  const installed = join(fakeHome, ".claude", "skills", "tabstack", "SKILL.md");
+  expect(readFileSync(installed, "utf8")).toContain("name: tabstack");
+  rmSync(fakeHome, { recursive: true, force: true });
+});
+
+test("skill agents prints an AGENTS.md-ready section", async () => {
+  const { stdout, code } = await run(["skill", "agents"]);
+  expect(code).toBe(0);
+  expect(stdout).toContain("## tabstack");
+  expect(stdout).toContain("recipes --json");
+});
+
 // --- global flags ----------------------------------------------------------------
 
 test("login honors --base-url for the verification call", async () => {

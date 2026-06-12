@@ -56,3 +56,5 @@ Prose versions with sample outputs: [RECIPES.md](./RECIPES.md).
 - Request bodies: check field casing against the API — `geo_target` is snake,
   `maxIterations` is camel. The spec is the source of truth.
 - Keep `src/recipes.ts` and `RECIPES.md` in sync when touching recipes.
+- The skill is embedded in `src/skill.ts` (SKILL_MD) and must stay
+  byte-identical to `.claude/skills/tabstack/SKILL.md` — a test enforces it.
