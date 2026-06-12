@@ -200,6 +200,11 @@ Auth (resolved in order):
 Exit codes:
   0 success · 1 runtime/API error · 2 usage error · 3 task reported failure
 
+Agents:
+  Piped output is always JSON; research/automate stream NDJSON (one event/line).
+  'tabstack recipes --json' lists ten ready patterns with runnable commands.
+  Full agent contract: AGENTS.md in the repo.
+
 Examples:
   tabstack login
   tabstack login --with-key ts_xxx --no-verify

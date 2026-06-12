@@ -52,6 +52,18 @@ tabstack recipes 9      # one recipe, copy-paste ready
 tabstack recipes 9 --json | jq .command   # agents eat the cookbook too
 ```
 
+## For agents
+
+Three discovery paths, so an agent finds the recipes however it arrives:
+
+- **[AGENTS.md](./AGENTS.md)** — the agent contract: output conventions,
+  NDJSON event filtering, exit codes, safety flags, and the recipe index.
+  Read automatically by Codex, Cursor, Copilot, and friends.
+- **`.claude/skills/tabstack/`** — a Claude Code skill that triggers when a
+  task needs live web data; copy it to `~/.claude/skills/` to make it global.
+- **`tabstack recipes --json`** — the cookbook as structured data, no docs
+  required.
+
 ## Install
 
 ```bash
