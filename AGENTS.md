@@ -31,6 +31,9 @@ the API handle the page.
 - **Safety:** `automate` is read-only by default (an injected guardrail).
   Destructive actions need explicit `--allow-actions`. Human-in-the-loop needs
   `--interactive`; answer pauses with `tabstack input <request-id> --data ...`.
+- **Budget:** `tabstack usage --json` → estimated tokens remaining + learned
+  per-verb cost. Check it before many-call pipelines. 429s auto-retry
+  honoring the rate-limit reset — do not add manual sleeps or backoff.
 
 ## The cookbook is machine-readable
 

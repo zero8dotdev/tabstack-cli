@@ -10,12 +10,47 @@
  */
 
 import { getBaseUrl } from "./config";
+import { recordCall, verbFromPath } from "./usage";
+import { progress } from "./format";
 
 /** Optional timeout (seconds) for non-streaming calls, set by --timeout. */
 let requestTimeoutSecs: number | undefined;
 
 export function setRequestTimeout(seconds: number): void {
   requestTimeoutSecs = seconds;
+}
+
+const MAX_RATELIMIT_RETRIES = 2;
+
+/**
+ * Fetch with 429 handling: wait until x-ratelimit-reset (capped at 90s) and
+ * retry, so pipelines absorb rate limits instead of failing on them.
+ * On success, log the call to the local usage ledger.
+ */
+async function fetchWithRetry(path: string, init: RequestInit): Promise<Response> {
+  const started = Date.now();
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(`${getBaseUrl()}${path}`, init);
+    if (res.status === 429 && attempt < MAX_RATELIMIT_RETRIES) {
+      const reset = Number(res.headers.get("x-ratelimit-reset"));
+      const waitMs = Number.isFinite(reset)
+        ? Math.min(Math.max(reset * 1000 - Date.now(), 1_000), 90_000)
+        : 2 ** attempt * 2_000;
+      progress(`· rate limited — retrying in ${Math.ceil(waitMs / 1000)}s`);
+      await new Promise((r) => setTimeout(r, waitMs));
+      continue;
+    }
+    if (res.ok) {
+      recordCall({
+        ts: Date.now(),
+        verb: verbFromPath(path),
+        ms: Date.now() - started,
+        rlRemaining: Number(res.headers.get("x-ratelimit-remaining")) || undefined,
+        rlLimit: Number(res.headers.get("x-ratelimit-limit")) || undefined,
+      });
+    }
+    return res;
+  }
 }
 
 export class TabstackError extends Error {
@@ -55,7 +90,7 @@ export async function postJson<T = unknown>(
 ): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${getBaseUrl()}${path}`, {
+    res = await fetchWithRetry(path, {
       method: "POST",
       headers: headers(apiKey),
       body: JSON.stringify(body),
@@ -91,7 +126,7 @@ export async function* postStream(
   body: unknown,
   apiKey: string,
 ): AsyncGenerator<SseEvent> {
-  const res = await fetch(`${getBaseUrl()}${path}`, {
+  const res = await fetchWithRetry(path, {
     method: "POST",
     headers: headers(apiKey, "text/event-stream"),
     body: JSON.stringify(body),

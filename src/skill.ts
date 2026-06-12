@@ -47,6 +47,9 @@ JSON, or URL → clean markdown), \`research\` (query → cited report),
   \`tabstack input <request-id> ...\` instruction to the user.
 - Prefer \`extract json\` with a schema over fetching HTML and parsing it
   yourself — selectors rot, schemas don't.
+- **Budget:** \`tabstack usage --json\` reports estimated tokens remaining and
+  learned per-call costs by verb — check it before a many-call pipeline.
+  429s auto-retry honoring the rate-limit reset, so don't add manual sleeps.
 
 ## Example: page → typed data
 

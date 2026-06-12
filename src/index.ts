@@ -32,6 +32,14 @@ import {
 import { login, logout } from "./auth";
 import { RECIPES, HEAT_BADGE } from "./recipes";
 import { SKILL_MD, AGENTS_SNIPPET } from "./skill";
+import {
+  readState,
+  writeState,
+  readLedger,
+  addCalibration,
+  estimateRemaining,
+  syncFromConsole,
+} from "./usage";
 import { homedir } from "os";
 import { join } from "path";
 import { mkdirSync, writeFileSync, existsSync } from "fs";
@@ -156,6 +164,10 @@ Commands:
   recipes [n|name]                Browse the cookbook (10 recipes, light to hard)
   skill install [--project]       Install the Claude Code skill (~/.claude/skills)
   skill agents                    Print an AGENTS.md section (skill agents >> AGENTS.md)
+  usage                           Token budget: balance, learned per-call costs, rate limit
+  usage set <tokens>              Calibrate from the console dashboard's "tokens remaining"
+  usage cookie <value>            Store a console session cookie for automatic sync
+  usage sync                      Pull the balance from the console and recalibrate
   help                            Show this help
   version                         Show version
 
@@ -526,6 +538,114 @@ function cmdSkill(args: string[], outMode: OutputMode): void {
   usage("Usage: tabstack skill [install [--project] | agents]");
 }
 
+/**
+ * `tabstack usage [set <n> | sync | cookie [value]]` — token budget tracking.
+ * The API has no balance endpoint, so balances come from the console
+ * dashboard (pasted or cookie-scraped) and per-verb costs are learned from
+ * the deltas between readings.
+ */
+async function cmdUsage(args: string[], outMode: OutputMode): Promise<void> {
+  const sub = getPositional(args.slice(1), 0);
+
+  if (sub === "set") {
+    const raw = getPositional(args.slice(1), 1);
+    const tokens = Number(raw?.replace(/,/g, ""));
+    if (!raw || !Number.isFinite(tokens) || tokens < 0) {
+      usage("Usage: tabstack usage set <tokens-remaining>   (the number from the console dashboard)");
+    }
+    const { consumed, callsInWindow } = addCalibration(Math.round(tokens), "manual");
+    if (outMode === "json") {
+      console.log(json({ calibrated: Math.round(tokens), consumed: consumed ?? null, callsInWindow }));
+    } else {
+      console.log(`${green("✓")} calibrated: ${Math.round(tokens).toLocaleString()} tokens remaining`);
+      if (consumed !== undefined)
+        console.log(dimOut(`${consumed.toLocaleString()} tokens consumed across ${callsInWindow} logged calls since last reading — per-verb costs updated.`));
+    }
+    return;
+  }
+
+  if (sub === "cookie") {
+    let value = getPositional(args.slice(1), 1);
+    if (!value || value === "-") value = (await resolveTextArg("-")).trim();
+    if (!value) usage("Usage: tabstack usage cookie <console-session-cookie>   (or pipe it on stdin)");
+    if (!value.includes("=")) {
+      usage('That does not look like a cookie — paste the full "name=value" string from DevTools → Application → Cookies → console.tabstack.ai');
+    }
+    const state = readState();
+    state.consoleCookie = value;
+    writeState(state);
+    console.log(`${green("✓")} console cookie stored (0600). Run 'tabstack usage sync'.`);
+    return;
+  }
+
+  if (sub === "sync") {
+    const state = readState();
+    const cookie = process.env.TABSTACK_CONSOLE_COOKIE || state.consoleCookie;
+    if (!cookie) {
+      throw new Error(
+        "No console cookie. Copy it from your browser (DevTools → Application → Cookies → console.tabstack.ai) and run 'tabstack usage cookie <value>'.",
+      );
+    }
+    const { tokens, page } = await syncFromConsole(cookie);
+    const { consumed, callsInWindow } = addCalibration(tokens, "sync");
+    if (outMode === "json") {
+      console.log(json({ tokens, page, consumed: consumed ?? null, callsInWindow }));
+    } else {
+      console.log(`${green("✓")} synced from console${page}: ${tokens.toLocaleString()} tokens remaining`);
+      if (consumed !== undefined)
+        console.log(dimOut(`${consumed.toLocaleString()} consumed across ${callsInWindow} calls since last reading — per-verb costs updated.`));
+    }
+    return;
+  }
+
+  if (sub) usage("Usage: tabstack usage [set <tokens> | sync | cookie [value]]");
+
+  // Report.
+  const state = readState();
+  const ledger = readLedger();
+  const last = state.calibrations.at(-1);
+  const remaining = estimateRemaining(state);
+  const since = last ? ledger.filter((e) => e.ts > last.ts) : ledger;
+  const byVerb: Record<string, number> = {};
+  for (const e of since) byVerb[e.verb] = (byVerb[e.verb] ?? 0) + 1;
+  const lastRl = [...ledger].reverse().find((e) => e.rlRemaining !== undefined);
+
+  if (outMode === "json") {
+    console.log(json({
+      lastCalibration: last ?? null,
+      estimatedRemaining: remaining ?? null,
+      callsSinceCalibration: byVerb,
+      learnedCostPerCall: state.learned,
+      lastRateLimit: lastRl ? { remaining: lastRl.rlRemaining, limit: lastRl.rlLimit } : null,
+      totalCallsLogged: ledger.length,
+    }));
+    return;
+  }
+
+  if (!last) {
+    console.log("No balance readings yet. Get 'tokens remaining' from the console dashboard, then:");
+    console.log("  tabstack usage set <tokens>        # paste the number");
+    console.log("  tabstack usage cookie <cookie>     # or store a session cookie and");
+    console.log("  tabstack usage sync                #   pull it automatically");
+    console.log(dimOut(`\n${ledger.length} calls logged locally so far — they'll price themselves after two readings.`));
+    return;
+  }
+
+  console.log(`balance:   ${last.tokens.toLocaleString()} tokens (${last.source}, ${new Date(last.ts).toLocaleString()})`);
+  if (remaining !== undefined && remaining !== last.tokens)
+    console.log(`est. now:  ~${remaining.toLocaleString()} tokens`);
+  if (Object.keys(byVerb).length)
+    console.log(`since:     ${Object.entries(byVerb).map(([v, n]) => `${n}× ${v}`).join(", ")}`);
+  if (Object.keys(state.learned).length) {
+    console.log("per call:  " + Object.entries(state.learned)
+      .map(([v, l]) => `${v} ~${l.avg.toLocaleString()} (${l.samples} samples)`)
+      .join(" · "));
+  } else {
+    console.log(dimOut("per call:  uncalibrated — take a second reading after a few calls to learn costs"));
+  }
+  if (lastRl) console.log(dimOut(`ratelimit: ${lastRl.rlRemaining}/${lastRl.rlLimit} at last call`));
+}
+
 /** `tabstack status` — how the key resolves, without ever printing it. */
 function cmdStatus(args: string[], outMode: OutputMode): void {
   const resolved = resolveKey(getArg(args, "--api-key"));
@@ -592,6 +712,9 @@ async function main(): Promise<void> {
       break;
     case "skill":
       cmdSkill(args, outMode);
+      break;
+    case "usage":
+      await cmdUsage(args, outMode);
       break;
     case "status":
       cmdStatus(args, outMode);

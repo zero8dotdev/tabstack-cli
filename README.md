@@ -121,7 +121,26 @@ tabstack research "<query>"                            Multi-source research (st
 tabstack automate "<task>" [--url U]                   Browser automation (streaming)
 tabstack input <request-id> --data D                   Answer a paused automation
 tabstack recipes [n|name]                              The cookbook, in your terminal
+tabstack usage [set|cookie|sync]                       Token budget tracking & cost estimates
 ```
+
+### Usage & cost tracking
+
+The API exposes no balance endpoint and no per-call token cost (only the
+console dashboard shows "tokens remaining"). The CLI works around that:
+
+- every API call is logged to a **local ledger** (`~/.config/tabstack/usage.jsonl`)
+- feed in the dashboard balance — `tabstack usage set 87500`, or store a
+  console session cookie once (`tabstack usage cookie <value>`) and run
+  `tabstack usage sync` to scrape it automatically
+- the **delta between two readings**, split across the logged calls, teaches
+  per-verb costs; `tabstack usage` then shows the estimated balance and what
+  the next call of each verb will roughly cost
+- 429s **auto-retry** honoring `x-ratelimit-reset` (the only quota signal the
+  API does send), so pipelines absorb rate limits instead of failing
+
+This is scaffolding by design: the day Tabstack ships `GET /v1/usage` or an
+`x-tokens-used` header, the ledger gets fed truth instead of inference.
 
 Run `tabstack help` for the full flag reference.
 

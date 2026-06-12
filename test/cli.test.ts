@@ -17,6 +17,7 @@ const ENTRY = new URL("../src/index.ts", import.meta.url).pathname;
 let server: ReturnType<typeof Bun.serve>;
 let base: string;
 let configDir: string;
+let flaky429Seen = false;
 
 beforeAll(() => {
   configDir = mkdtempSync(join(tmpdir(), "tabstack-test-"));
@@ -34,11 +35,26 @@ beforeAll(() => {
 
       if (url.pathname === "/v1/extract/markdown") {
         if ((body as any).url?.includes("slow")) await new Promise((r) => setTimeout(r, 500));
+        // First call for a "flaky429" URL is rate limited; the retry succeeds.
+        if ((body as any).url?.includes("flaky429") && !flaky429Seen) {
+          flaky429Seen = true;
+          return Response.json({ error: "rate limited" }, {
+            status: 429,
+            headers: { "x-ratelimit-reset": String(Math.ceil(Date.now() / 1000) + 1) },
+          });
+        }
         return Response.json({
           url: (body as any).url,
           content: "# Hello\n\nworld",
           ...((body as any).metadata ? { metadata: { title: "Hello Page" } } : {}),
         });
+      }
+      // Fake console dashboard for `usage sync` (cookie-gated).
+      if (url.pathname === "/usage") {
+        if (!(req.headers.get("cookie") || "").includes("good-session")) {
+          return new Response("<form action='/sessions/new'><input name='email_address'></form>", { headers: { "Content-Type": "text/html" } });
+        }
+        return new Response("<html><div class='balance'>12,345 tokens remaining</div></html>", { headers: { "Content-Type": "text/html" } });
       }
       if (url.pathname === "/v1/extract/json") {
         return Response.json({ title: "Example" });
@@ -488,6 +504,60 @@ test("skill agents prints an AGENTS.md-ready section", async () => {
   expect(code).toBe(0);
   expect(stdout).toContain("## tabstack");
   expect(stdout).toContain("recipes --json");
+});
+
+// --- usage: ledger, calibration, estimator, sync, 429 retry -----------------------
+
+test("usage learns per-verb cost from two calibrations around logged calls", async () => {
+  const dir = join(configDir, "usage-learn");
+  const env = { TABSTACK_CONFIG_DIR: dir };
+  await run(["usage", "set", "1000"], { env });
+  await run(["extract", "markdown", "https://example.com"], { env });
+  await run(["extract", "markdown", "https://example.com"], { env });
+  const second = await run(["usage", "set", "900"], { env });
+  expect(second.code).toBe(0);
+  expect(JSON.parse(second.stdout)).toMatchObject({ calibrated: 900, consumed: 100, callsInWindow: 2 });
+  const report = await run(["usage"], { env });
+  const u = JSON.parse(report.stdout);
+  expect(u.learnedCostPerCall.extract.avg).toBe(50);
+  expect(u.estimatedRemaining).toBe(900);
+  expect(u.totalCallsLogged).toBe(2);
+});
+
+test("usage sync scrapes the console with a stored cookie and calibrates", async () => {
+  const dir = join(configDir, "usage-sync");
+  const env = { TABSTACK_CONFIG_DIR: dir, TABSTACK_CONSOLE_URL: base };
+  const ck = await run(["usage", "cookie", "_tabstack_session=good-session"], { env });
+  expect(ck.code).toBe(0);
+  const sync = await run(["usage", "sync"], { env });
+  expect(sync.code).toBe(0);
+  expect(JSON.parse(sync.stdout).tokens).toBe(12345);
+  const mode = statSync(join(dir, "usage.json")).mode & 0o777;
+  expect(mode).toBe(0o600); // the cookie file is owner-only
+});
+
+test("usage sync with an expired cookie explains itself", async () => {
+  const dir = join(configDir, "usage-expired");
+  const env = { TABSTACK_CONFIG_DIR: dir, TABSTACK_CONSOLE_URL: base };
+  await run(["usage", "cookie", "_tabstack_session=stale"], { env });
+  const { stderr, code } = await run(["usage", "sync"], { env });
+  expect(code).toBe(1);
+  expect(stderr).toContain("expired");
+});
+
+test("usage sync without a cookie tells you how to store one", async () => {
+  const { stderr, code } = await run(["usage", "sync"], {
+    env: { TABSTACK_CONFIG_DIR: join(configDir, "usage-nocookie"), TABSTACK_CONSOLE_URL: base },
+  });
+  expect(code).toBe(1);
+  expect(stderr).toContain("usage cookie");
+});
+
+test("a 429 is retried after the reset and the call succeeds", async () => {
+  const { stdout, stderr, code } = await run(["extract", "markdown", "https://flaky429.example.com"]);
+  expect(code).toBe(0);
+  expect(JSON.parse(stdout).content).toContain("# Hello");
+  expect(stderr).toContain("rate limited — retrying");
 });
 
 // --- global flags ----------------------------------------------------------------
