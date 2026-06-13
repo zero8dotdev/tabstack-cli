@@ -149,6 +149,12 @@ jq -r 'select(.event=="complete") | .data.metadata.citedPages[] | "- [\(.title)]
 > [!TIP]
 > Piped research streams **NDJSON — one event per line** — so `jq 'select(.event=="...")'` is your event handler. No SSE parser, no library, no drama.
 
+> [!WARNING]
+> `research` costs ~25× more than `extract`. If you can name the sources, use
+> recipe 2 to extract each one (~10 cr/page) and synthesize in-context — you'll
+> often get better specificity at a fraction of the price. Use `research` when
+> the hard part is *finding* the sources, not reading them.
+
 ---
 
 ### 🟡 7. CI for facts

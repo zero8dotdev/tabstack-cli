@@ -131,13 +131,22 @@ console dashboard shows "tokens remaining"). The CLI works around that:
 
 - every API call is logged to a **local ledger** (`~/.config/tabstack/usage.jsonl`)
 - feed in the dashboard balance — `tabstack usage set 87500`, or store a
-  console session cookie once (`tabstack usage cookie <value>`) and run
-  `tabstack usage sync` to scrape it automatically
+  console session cookie once (`tabstack usage cookie <name=value>`) and run
+  `tabstack usage sync` to scrape it automatically. The cookie must be in
+  `name=value` format — copy the full cookie string from your browser's
+  DevTools (Network → request headers → Cookie), not just the value
 - the **delta between two readings**, split across the logged calls, teaches
   per-verb costs; `tabstack usage` then shows the estimated balance and what
   the next call of each verb will roughly cost
 - 429s **auto-retry** honoring `x-ratelimit-reset` (the only quota signal the
   API does send), so pipelines absorb rate limits instead of failing
+
+**Extract vs research — the measured rule:** default to `extract`. If you can
+name the URLs, extract them (~10 cr/page) and synthesize in-context — two
+controlled experiments found extract beats research on quality at **4–25×
+lower cost**. 1 `research` ≈ 25 `extract` calls; buy it only when source
+discovery is the hard part. Never use research as a fact pipe — extract the
+cited pages first to verify specific numbers and quotes.
 
 This is scaffolding by design: the day Tabstack ships `GET /v1/usage` or an
 `x-tokens-used` header, the ledger gets fed truth instead of inference.
@@ -231,7 +240,7 @@ tabstack input <request-id> --data '{"cancelled":true}'    # decline
 ## Develop
 
 ```bash
-bun test                          # mock-server end-to-end tests (43 tests)
+bun test                          # mock-server end-to-end tests (56 tests)
 bun x -p typescript tsc --noEmit  # typecheck
 bun run start --help
 ```
